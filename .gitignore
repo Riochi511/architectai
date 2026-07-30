@@ -1,0 +1,16 @@
+A# Python
+__pycache__/
+*.py[cod]
+*.pyo
+
+# Virtual Environment
+.venv/
+venv/
+
+# Environment variables
+.env
+*.env
+backend/.env
+
+# Generated reports
+generated_reports/
