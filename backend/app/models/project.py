@@ -2,7 +2,10 @@ from sqlalchemy import (
     ForeignKey,
     String,
     Text,
+    JSON,
+    Float,
 )
+
 from sqlalchemy.orm import (
     Mapped,
     mapped_column,
@@ -31,6 +34,25 @@ class Project(Base):
 
     owner_id: Mapped[int] = mapped_column(
         ForeignKey("users.id")
+    )
+
+    # -----------------------------
+    # Discovery Agent Memory
+    # -----------------------------
+
+    discovery_stage: Mapped[str] = mapped_column(
+        String(50),
+        default="vision"
+    )
+
+    discovery_memory: Mapped[dict] = mapped_column(
+        JSON,
+        default=dict
+    )
+
+    discovery_confidence: Mapped[float] = mapped_column(
+        Float,
+        default=0.0
     )
 
     owner = relationship(

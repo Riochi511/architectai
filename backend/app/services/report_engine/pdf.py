@@ -3,11 +3,12 @@ from pathlib import Path
 from reportlab.platypus import (
     Paragraph,
     SimpleDocTemplate,
+    Spacer,
 )
 
 from app.services.report_engine.parser import parse_markdown
 from app.services.report_engine.renderer import render_blocks
-from app.services.report_engine.styles import TITLE_STYLE
+from app.services.report_engine.styles import get_styles
 
 OUTPUT_DIR = Path("generated_reports")
 OUTPUT_DIR.mkdir(exist_ok=True)
@@ -21,17 +22,27 @@ def generate_report_pdf(
     Generate a professional PDF report from Markdown.
     """
 
+    styles = get_styles()
+
     blocks = parse_markdown(markdown_content)
 
-    story = render_blocks(blocks)
+    print(blocks)
 
-    # Always display the report title
-    story.insert(
-        0,
+    story = []
+
+    # Cover title
+    story.append(
         Paragraph(
             title,
-            TITLE_STYLE,
-        ),
+            styles["Title"],
+        )
+    )
+
+    story.append(Spacer(1, 24))
+
+    # Render parsed markdown
+    story.extend(
+        render_blocks(blocks)
     )
 
     safe_name = (
@@ -42,7 +53,9 @@ def generate_report_pdf(
 
     pdf_path = OUTPUT_DIR / f"{safe_name}.pdf"
 
-    doc = SimpleDocTemplate(str(pdf_path))
+    doc = SimpleDocTemplate(
+        str(pdf_path)
+    )
 
     doc.build(story)
 
