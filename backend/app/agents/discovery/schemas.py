@@ -17,7 +17,6 @@ class DiscoveryStage(str, Enum):
 
 
 class DiscoveryRequest(BaseModel):
-    project_id: int
     user_message: str
 
 

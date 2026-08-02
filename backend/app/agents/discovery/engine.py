@@ -1,69 +1,76 @@
-from app.agents.discovery.memory import DiscoveryMemory
-from app.agents.discovery.questions import DISCOVERY_QUESTIONS
 from app.agents.discovery.confidence import calculate_confidence
+from app.agents.discovery.interviewer import ask
+from app.agents.discovery.refiner import refine
 from app.agents.discovery.schemas import DiscoveryStage
 
 
 class DiscoveryEngine:
 
-    def __init__(self):
-        self.memory = DiscoveryMemory()
+    STAGE_FLOW = {
+        DiscoveryStage.VISION: DiscoveryStage.USERS,
+        DiscoveryStage.USERS: DiscoveryStage.PROBLEM,
+        DiscoveryStage.PROBLEM: DiscoveryStage.FUNCTIONAL,
+        DiscoveryStage.FUNCTIONAL: DiscoveryStage.NON_FUNCTIONAL,
+        DiscoveryStage.NON_FUNCTIONAL: DiscoveryStage.AI,
+        DiscoveryStage.AI: DiscoveryStage.DATA,
+        DiscoveryStage.DATA: DiscoveryStage.CONSTRAINTS,
+        DiscoveryStage.CONSTRAINTS: DiscoveryStage.DEPLOYMENT,
+        DiscoveryStage.DEPLOYMENT: DiscoveryStage.COMPLETE,
+    }
 
-    def process(self, answer: str | None = None):
+    def process(self, project, user_message: str | None = None):
 
-        if answer:
+        memory = project.discovery_memory or {}
 
-            stage = self.memory.current_stage
+        stage = project.discovery_stage or DiscoveryStage.VISION
 
-            if stage == DiscoveryStage.VISION:
-                self.memory.vision = answer
-                self.memory.current_stage = DiscoveryStage.USERS
+        if isinstance(stage, str):
+            stage = DiscoveryStage(stage)
 
-            elif stage == DiscoveryStage.USERS:
-                self.memory.primary_users = answer
-                self.memory.current_stage = DiscoveryStage.PROBLEM
+        # Initial interview (no answer yet)
+        if not user_message:
 
-            elif stage == DiscoveryStage.PROBLEM:
-                self.memory.problem_statement = answer
-                self.memory.current_stage = DiscoveryStage.FUNCTIONAL
+            interview = ask(
+                memory=memory,
+                stage=stage.value,
+                latest_answer="",
+            )
 
-            elif stage == DiscoveryStage.FUNCTIONAL:
-                self.memory.functional_requirements.append(answer)
-                self.memory.current_stage = DiscoveryStage.NON_FUNCTIONAL
-
-            elif stage == DiscoveryStage.NON_FUNCTIONAL:
-                self.memory.non_functional_requirements.append(answer)
-                self.memory.current_stage = DiscoveryStage.AI
-
-            elif stage == DiscoveryStage.AI:
-                self.memory.ai_capabilities.append(answer)
-                self.memory.current_stage = DiscoveryStage.DATA
-
-            elif stage == DiscoveryStage.DATA:
-                self.memory.data_sources.append(answer)
-                self.memory.current_stage = DiscoveryStage.CONSTRAINTS
-
-            elif stage == DiscoveryStage.CONSTRAINTS:
-                self.memory.constraints.append(answer)
-                self.memory.current_stage = DiscoveryStage.DEPLOYMENT
-
-            elif stage == DiscoveryStage.DEPLOYMENT:
-                self.memory.deployment_target = answer
-
-        self.memory.confidence_score = calculate_confidence(self.memory)
-
-        questions = DISCOVERY_QUESTIONS.get(
-            self.memory.current_stage,
-            [],
-        )
-
-        if questions:
             return {
-                "question": questions[0],
-                "completed": False,
+                "question": interview["question"],
+                "completed": stage == DiscoveryStage.COMPLETE,
             }
 
+        # Refine memory
+        memory = refine(
+            memory=memory,
+            stage=stage.value,
+            latest_answer=user_message,
+        )
+
+        # Ask interviewer what to do next
+        interview = ask(
+            memory=memory,
+            stage=stage.value,
+            latest_answer=user_message,
+        )
+
+        # Advance stage if AI decides
+        if interview["next_stage"]:
+            stage = self.STAGE_FLOW.get(
+                stage,
+                DiscoveryStage.COMPLETE,
+            )
+
+        # Persist project state
+        project.discovery_memory = memory
+        print("DISCOVERY MEMORY")
+        print(memory)
+        print("CONFIDENCE:", calculate_confidence(memory))
+        project.discovery_stage = stage.value
+        project.discovery_confidence = calculate_confidence(memory)
+
         return {
-            "question": None,
-            "completed": True,
+            "question": interview["question"],
+            "completed": stage == DiscoveryStage.COMPLETE,
         }

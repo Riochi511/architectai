@@ -1,35 +1,31 @@
-from app.agents.discovery.memory import DiscoveryMemory
+def calculate_confidence(memory: dict) -> int:
+    score = 0
 
+    if memory.get("vision"):
+        score += 10
 
-def calculate_confidence(memory: DiscoveryMemory) -> float:
-    completed = 0
-    total = 9
+    if memory.get("users", {}).get("primary_users"):
+        score += 10
 
-    if memory.vision:
-        completed += 1
+    if memory.get("problem", {}).get("core_issues"):
+        score += 15
 
-    if memory.primary_users:
-        completed += 1
+    if memory.get("functional", {}).get("features"):
+        score += 20
 
-    if memory.problem_statement:
-        completed += 1
+    if memory.get("non_functional", {}).get("requirements"):
+        score += 15
 
-    if memory.functional_requirements:
-        completed += 1
+    if memory.get("ai", {}).get("capabilities"):
+        score += 10
 
-    if memory.non_functional_requirements:
-        completed += 1
+    if memory.get("data", {}).get("sources"):
+        score += 10
 
-    if memory.ai_capabilities:
-        completed += 1
+    if memory.get("constraints"):
+        score += 5
 
-    if memory.data_sources:
-        completed += 1
+    if memory.get("deployment"):
+        score += 5
 
-    if memory.constraints:
-        completed += 1
-
-    if memory.deployment_target:
-        completed += 1
-
-    return round(completed / total, 2)
+    return min(score, 100)
