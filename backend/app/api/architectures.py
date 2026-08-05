@@ -14,12 +14,17 @@ from app.models.user import User
 from app.models.project import Project
 from app.models.architecture import Architecture
 
-from app.schemas.architecture import ArchitectureResponse
-
-from app.services.architecture_generator import (
-    generate_architecture,
+from app.schemas.architecture import (
+    ArchitectureResponse,
+    ArchitectureGenerationResponse,
 )
+
+from app.agents.architecture.orchestrator import (
+    ArchitectureOrchestrator,
+)
+
 from app.services.pdf_generator import generate_pdf
+
 
 router = APIRouter(
     prefix="/architectures",
@@ -30,9 +35,10 @@ router = APIRouter(
 # ----------------------------------------------------
 # Generate Architecture
 # ----------------------------------------------------
+
 @router.post(
     "/generate/{project_id}",
-    response_model=ArchitectureResponse,
+    response_model=ArchitectureGenerationResponse,
     status_code=status.HTTP_201_CREATED,
 )
 def generate_project_architecture(
@@ -51,29 +57,24 @@ def generate_project_architecture(
 
     if not project:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found.",
         )
 
-    architecture_text = generate_architecture(project)
+    orchestrator = ArchitectureOrchestrator()
 
-    architecture = Architecture(
-        title=f"{project.name} Architecture",
-        architecture_type="System Architecture",
-        content=architecture_text,
-        project_id=project.id,
+    result = orchestrator.generate(
+        project=project,
+        db=db,
     )
 
-    db.add(architecture)
-    db.commit()
-    db.refresh(architecture)
-
-    return architecture
+    return result
 
 
 # ----------------------------------------------------
 # List All Architectures
 # ----------------------------------------------------
+
 @router.get(
     "/",
     response_model=list[ArchitectureResponse],
@@ -85,8 +86,12 @@ def list_architectures(
     architectures = (
         db.query(Architecture)
         .join(Project)
-        .filter(Project.owner_id == current_user.id)
-        .order_by(Architecture.id.desc())
+        .filter(
+            Project.owner_id == current_user.id,
+        )
+        .order_by(
+            Architecture.id.desc(),
+        )
         .all()
     )
 
@@ -96,6 +101,7 @@ def list_architectures(
 # ----------------------------------------------------
 # Get One Architecture
 # ----------------------------------------------------
+
 @router.get(
     "/{architecture_id}",
     response_model=ArchitectureResponse,
@@ -117,7 +123,7 @@ def get_architecture(
 
     if not architecture:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Architecture not found.",
         )
 
@@ -127,6 +133,7 @@ def get_architecture(
 # ----------------------------------------------------
 # Download Architecture PDF
 # ----------------------------------------------------
+
 @router.get(
     "/{architecture_id}/pdf",
 )
@@ -147,7 +154,7 @@ def download_architecture_pdf(
 
     if not architecture:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Architecture not found.",
         )
 
@@ -166,6 +173,7 @@ def download_architecture_pdf(
 # ----------------------------------------------------
 # Delete Architecture
 # ----------------------------------------------------
+
 @router.delete(
     "/{architecture_id}",
     status_code=status.HTTP_204_NO_CONTENT,
@@ -187,7 +195,7 @@ def delete_architecture(
 
     if not architecture:
         raise HTTPException(
-            status_code=404,
+            status_code=status.HTTP_404_NOT_FOUND,
             detail="Architecture not found.",
         )
 

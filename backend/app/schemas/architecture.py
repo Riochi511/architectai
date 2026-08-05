@@ -1,5 +1,7 @@
-from pydantic import BaseModel
 from datetime import datetime
+from typing import Any
+
+from pydantic import BaseModel
 
 
 class ArchitectureResponse(BaseModel):
@@ -12,3 +14,11 @@ class ArchitectureResponse(BaseModel):
 
     class Config:
         from_attributes = True
+
+
+class ArchitectureGenerationResponse(BaseModel):
+    architecture: ArchitectureResponse
+    validation: dict[str, Any]
+    confidence_score: int
+    sections_generated: int
+    generated_sections: list[str]

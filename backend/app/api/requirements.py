@@ -3,20 +3,71 @@ from sqlalchemy.orm import Session
 
 from app.auth.dependencies import get_current_user
 from app.database import get_db
+
 from app.models.project import Project
 from app.models.requirement import Requirement
 from app.models.user import User
+
 from app.schemas.requirement import (
     RequirementCreate,
     RequirementUpdate,
     RequirementResponse,
 )
 
+from app.agents.requirements.engine import RequirementsEngine
+
+
 router = APIRouter(
     prefix="/requirements",
     tags=["Requirements"],
 )
 
+
+# ==========================================================
+# AI REQUIREMENTS GENERATION
+# ==========================================================
+
+@router.post(
+    "/generate/{project_id}",
+    status_code=status.HTTP_200_OK,
+)
+def generate_requirements(
+    project_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    project = (
+        db.query(Project)
+        .filter(
+            Project.id == project_id,
+            Project.owner_id == current_user.id,
+        )
+        .first()
+    )
+
+    if not project:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Project not found.",
+        )
+
+    if not project.discovery_memory:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Complete project discovery before generating requirements.",
+        )
+
+    engine = RequirementsEngine()
+
+    return engine.process(
+        project=project,
+        db=db,
+    )
+
+
+# ==========================================================
+# CREATE REQUIREMENT
+# ==========================================================
 
 @router.post(
     "/project/{project_id}",
@@ -59,6 +110,10 @@ def create_requirement(
     return new_requirement
 
 
+# ==========================================================
+# GET PROJECT REQUIREMENTS
+# ==========================================================
+
 @router.get(
     "/project/{project_id}",
     response_model=list[RequirementResponse],
@@ -85,10 +140,16 @@ def get_project_requirements(
 
     return (
         db.query(Requirement)
-        .filter(Requirement.project_id == project.id)
+        .filter(
+            Requirement.project_id == project.id
+        )
         .all()
     )
 
+
+# ==========================================================
+# GET SINGLE REQUIREMENT
+# ==========================================================
 
 @router.get(
     "/{requirement_id}",
@@ -117,6 +178,10 @@ def get_requirement(
 
     return requirement
 
+
+# ==========================================================
+# UPDATE REQUIREMENT
+# ==========================================================
 
 @router.put(
     "/{requirement_id}",
@@ -154,6 +219,10 @@ def update_requirement(
 
     return requirement
 
+
+# ==========================================================
+# DELETE REQUIREMENT
+# ==========================================================
 
 @router.delete(
     "/{requirement_id}",

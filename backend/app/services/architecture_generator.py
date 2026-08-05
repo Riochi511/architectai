@@ -51,78 +51,74 @@ def generate_architecture(project: Project) -> str:
         "IMPORTANT RULES",
         "",
         "- Return VALID RAW MARKDOWN ONLY.",
-        "- DO NOT wrap the entire response inside triple backticks.",
-        "- DO NOT output ```markdown",
-        "- DO NOT generate a document title (no H1).",
-        "- The document MUST start with:",
+        "- DO NOT wrap the response in triple backticks.",
+        "- DO NOT generate an H1 title.",
+        "- Start with:",
         "",
         "## Executive Summary",
         "",
-        "------------------------------------------------",
-        "",
-        "Use only these heading levels:",
-        "",
-        "## Heading",
-        "### Subheading",
-        "",
-        "------------------------------------------------",
-        "",
-        "FOLDER STRUCTURES",
-        "",
-        "EVERY folder tree MUST be fenced exactly like this:",
-        "",
-        "```text",
-        "project/",
-        "├── app/",
-        "│   ├── api/",
-        "│   ├── models/",
-        "│   └── services/",
-        "└── README.md",
-        "```",
-        "",
-        "Never output a folder tree as plain text. Always put it inside a ```text fence.",
-        "",
-        "------------------------------------------------",
-        "",
-        "CODE BLOCKS",
-        "",
-        "Always use fenced code blocks with a language tag when showing code, schemas, or configuration.",
-        "",
-        "------------------------------------------------",
-        "",
-        "Keep the document professional, clear, and complete.",
+        "Use Markdown headings only.",
     ])
 
     payload = {
         "model": settings.MODEL_NAME,
         "temperature": 0.2,
         "messages": [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": prompt},
+            {
+                "role": "system",
+                "content": system_prompt,
+            },
+            {
+                "role": "user",
+                "content": prompt,
+            },
         ],
     }
 
     try:
+
         response = requests.post(
             OPENROUTER_URL,
             headers=headers,
             json=payload,
             timeout=90,
         )
-        response.raise_for_status()
+
+        if not response.ok:
+            raise RuntimeError(
+                f"""
+OpenRouter Error
+
+Status Code:
+{response.status_code}
+
+Response:
+{response.text}
+"""
+            )
 
         data = response.json()
+
+        if "choices" not in data:
+            raise RuntimeError(
+                f"Unexpected OpenRouter response:\n\n{data}"
+            )
+
         content = data["choices"][0]["message"]["content"]
+
         return _clean_markdown(content)
 
     except Timeout:
-        raise RuntimeError("OpenRouter request timed out. Please try again.")
+        raise RuntimeError(
+            "OpenRouter request timed out."
+        )
+
     except ConnectionError:
         raise RuntimeError(
-            "Could not connect to OpenRouter (network / DNS issue). "
-            "Check your internet connection and try again."
+            "Could not connect to OpenRouter."
         )
+
     except RequestException as e:
-        raise RuntimeError(f"OpenRouter request failed: {str(e)}")
-    except (KeyError, IndexError, TypeError):
-        raise RuntimeError("Unexpected response format from OpenRouter.")
+        raise RuntimeError(
+            f"OpenRouter request failed:\n{e}"
+        )
