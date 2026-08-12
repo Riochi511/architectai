@@ -1,8 +1,6 @@
 import json
 
-from litellm import completion
-
-from app.config import settings
+from app.llm.gateway import LLMGateway
 
 
 VALIDATOR_SYSTEM_PROMPT = """
@@ -69,29 +67,18 @@ Architecture Document
 {document}
 """
 
-    response = completion(
-        model=settings.MODEL_NAME,
-        api_key=settings.OPENROUTER_API_KEY,
-        api_base="https://openrouter.ai/api/v1",
-        messages=[
-            {
-                "role": "system",
-                "content": VALIDATOR_SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
+    gateway = LLMGateway()
+
+    response = gateway.generate(
+        system_prompt=VALIDATOR_SYSTEM_PROMPT,
+        user_prompt=prompt,
         temperature=0.1,
         response_format={
             "type": "json_object"
         },
     )
 
-    report = json.loads(
-        response["choices"][0]["message"]["content"]
-    )
+    report = json.loads(response)
 
     defaults = {
         "valid": True,

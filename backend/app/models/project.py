@@ -55,6 +55,15 @@ class Project(Base):
         default=0.0
     )
 
+    # -----------------------------
+    # Requirements Agent Document
+    # -----------------------------
+
+    requirements_document: Mapped[dict] = mapped_column(
+        JSON,
+        default=dict
+    )
+
     owner = relationship(
         "User",
         back_populates="projects",

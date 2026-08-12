@@ -1,11 +1,19 @@
 import json
 import traceback
-from litellm import completion
 
-from app.config import settings
+from app.llm.gateway import LLMGateway
 
 
 class ArchitectureEngine:
+    """
+    Architecture section generation engine.
+
+    The engine is provider-agnostic.
+    All LLM communication is handled by the central LLM Gateway.
+    """
+
+    def __init__(self):
+        self.llm = LLMGateway()
 
     def generate(
         self,
@@ -25,28 +33,13 @@ Task
 """
 
         try:
-            response = completion(
-                model=settings.MODEL_NAME,
-                api_key=settings.OPENROUTER_API_KEY,
-                api_base="https://openrouter.ai/api/v1",
-                messages=[
-                    {
-                        "role": "system",
-                        "content": system_prompt,
-                    },
-                    {
-                        "role": "user",
-                        "content": prompt,
-                    },
-                ],
+            return self.llm.generate(
+                system_prompt=system_prompt,
+                user_prompt=prompt,
                 temperature=0.2,
             )
 
-            return response["choices"][0]["message"]["content"].strip()
-
         except Exception as e:
-            import traceback
-
             print("=" * 80)
             print("EXCEPTION TYPE:", type(e).__name__)
             print("EXCEPTION:", e)

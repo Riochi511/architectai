@@ -1,8 +1,6 @@
 import json
 
-from litellm import completion
-
-from app.config import settings
+from app.llm.gateway import LLMGateway
 from app.agents.requirements.prompts import VALIDATOR_PROMPT
 
 
@@ -30,27 +28,14 @@ Requirements:
 Review these requirements and produce the validation report.
 """
 
-    response = completion(
-        model=settings.MODEL_NAME,
-        api_key=settings.OPENROUTER_API_KEY,
-        api_base="https://openrouter.ai/api/v1",
-        messages=[
-            {
-                "role": "system",
-                "content": VALIDATOR_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        temperature=0.1,
-        response_format={
-            "type": "json_object"
-        },
-    )
+    gateway = LLMGateway()
 
-    content = response["choices"][0]["message"]["content"]
+    content = gateway.generate(
+        system_prompt=VALIDATOR_PROMPT,
+        user_prompt=prompt,
+        temperature=0.1,
+        response_format={"type": "json_object"},
+    )
 
     report = json.loads(content)
 

@@ -1,8 +1,6 @@
 import json
 
-from litellm import completion
-
-from app.config import settings
+from app.llm.gateway import LLMGateway
 
 
 SYSTEM_PROMPT = """
@@ -49,24 +47,13 @@ Latest User Answer:
 {latest_answer}
 """
 
-    response = completion(
-        model=settings.MODEL_NAME,
-        api_key=settings.OPENROUTER_API_KEY,
-        api_base="https://openrouter.ai/api/v1",
-        messages=[
-            {
-                "role": "system",
-                "content": SYSTEM_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
+    gateway = LLMGateway()
+
+    content = gateway.generate(
+        system_prompt=SYSTEM_PROMPT,
+        user_prompt=prompt,
         temperature=0.2,
         response_format={"type": "json_object"},
     )
-
-    content = response["choices"][0]["message"]["content"]
 
     return json.loads(content)

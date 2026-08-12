@@ -29,6 +29,10 @@ class RequirementsEngine:
 
         requirements = extract(discovery_memory)
 
+        # Preserve the complete rich requirements
+        # document on the project.
+        project.requirements_document = requirements
+
         # ----------------------------------------
         # Step 2
         # Validate Requirements
@@ -59,7 +63,7 @@ class RequirementsEngine:
             .delete()
         )
 
-        # Apply deletion before inserting new rows
+        # Apply deletion before inserting new rows.
         db.flush()
 
         # ----------------------------------------

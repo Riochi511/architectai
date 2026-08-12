@@ -1,8 +1,6 @@
 import json
 
-from litellm import completion
-
-from app.config import settings
+from app.llm.gateway import LLMGateway
 from app.agents.requirements.prompts import EXTRACTOR_PROMPT
 
 
@@ -37,31 +35,17 @@ Discovery Memory:
 Generate the complete structured requirements JSON.
 """
 
-    response = completion(
-        model=settings.MODEL_NAME,
-        api_key=settings.OPENROUTER_API_KEY,
-        api_base="https://openrouter.ai/api/v1",
-        messages=[
-            {
-                "role": "system",
-                "content": EXTRACTOR_PROMPT,
-            },
-            {
-                "role": "user",
-                "content": prompt,
-            },
-        ],
-        temperature=0.2,
-        response_format={
-            "type": "json_object"
-        },
-    )
+    gateway = LLMGateway()
 
-    content = response["choices"][0]["message"]["content"]
+    content = gateway.generate(
+        system_prompt=EXTRACTOR_PROMPT,
+        user_prompt=prompt,
+        temperature=0.2,
+        response_format={"type": "json_object"},
+    )
 
     requirements = json.loads(content)
 
-    # Ensure every expected section exists.
     defaults = {
         "business_requirements": [],
         "functional_requirements": [],
@@ -71,7 +55,6 @@ Generate the complete structured requirements JSON.
         "acceptance_criteria": [],
         "use_cases": [],
         "assumptions": [],
-        "constraints": [],
         "risks": [],
         "open_questions": [],
     }
