@@ -38,7 +38,10 @@ class RequirementsEngine:
         # Validate Requirements
         # ----------------------------------------
 
-        validation = validate(requirements)
+        validation = validate(
+            requirements=requirements,
+            discovery_memory=discovery_memory,
+        )
 
         # ----------------------------------------
         # Step 3

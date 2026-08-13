@@ -4,12 +4,16 @@ from app.llm.gateway import LLMGateway
 from app.agents.requirements.prompts import VALIDATOR_PROMPT
 
 
-def validate(requirements: dict) -> dict:
+def validate(
+    requirements: dict,
+    discovery_memory: dict,
+) -> dict:
     """
-    Validates extracted requirements.
+    Validates extracted requirements against the discovery memory.
 
     Input:
         requirements (dict)
+        discovery_memory (dict)
 
     Output:
         {
@@ -21,11 +25,23 @@ def validate(requirements: dict) -> dict:
     """
 
     prompt = f"""
-Requirements:
+Discovery Memory:
+
+{json.dumps(discovery_memory, indent=2)}
+
+Generated Requirements:
 
 {json.dumps(requirements, indent=2)}
 
-Review these requirements and produce the validation report.
+Review the generated requirements against the discovery memory.
+
+Determine whether the requirements are:
+- traceable to discovery
+- internally consistent
+- sufficiently complete for architecture generation
+- free from invented project facts
+
+Produce the validation report.
 """
 
     gateway = LLMGateway()
@@ -34,7 +50,9 @@ Review these requirements and produce the validation report.
         system_prompt=VALIDATOR_PROMPT,
         user_prompt=prompt,
         temperature=0.1,
-        response_format={"type": "json_object"},
+        response_format={
+            "type": "json_object"
+        },
     )
 
     report = json.loads(content)
