@@ -37,6 +37,14 @@ class ArchitectureOrchestrator:
         )
 
         # --------------------------------------------------
+        # Load Complete Requirements Document
+        # --------------------------------------------------
+
+        requirements_document = (
+            project.requirements_document or {}
+        )
+
+        # --------------------------------------------------
         # Build Project Context
         # --------------------------------------------------
 
@@ -46,7 +54,22 @@ class ArchitectureOrchestrator:
                 "name": project.name,
                 "description": project.description,
             },
-            "discovery_memory": project.discovery_memory or {},
+
+            "discovery_memory": (
+                project.discovery_memory or {}
+            ),
+
+            # Complete rich requirements document.
+            # This contains business requirements,
+            # functional requirements, non-functional
+            # requirements, business rules, user stories,
+            # acceptance criteria, use cases, risks,
+            # assumptions and open questions.
+            "requirements_document": requirements_document,
+
+            # Keep the relational requirements as well.
+            # These provide the normalized requirements
+            # currently stored in the database.
             "requirements": [
                 {
                     "title": requirement.title,
@@ -68,12 +91,16 @@ class ArchitectureOrchestrator:
 
         for section in SECTION_REGISTRY:
 
-            print(f"Generating section: {section.title}")
+            print(
+                f"Generating section: {section.title}"
+            )
 
-            generated_sections[section.id] = engine.generate(
-                system_prompt=SYSTEM_PROMPT,
-                section_prompt=section.prompt,
-                project_context=project_context,
+            generated_sections[section.id] = (
+                engine.generate(
+                    system_prompt=SYSTEM_PROMPT,
+                    section_prompt=section.prompt,
+                    project_context=project_context,
+                )
             )
 
         # --------------------------------------------------
@@ -91,7 +118,8 @@ class ArchitectureOrchestrator:
         # --------------------------------------------------
 
         validation_report = validate(
-            final_document
+            document=final_document,
+            project_context=project_context
         )
 
         # --------------------------------------------------
@@ -103,13 +131,17 @@ class ArchitectureOrchestrator:
         )
 
         # --------------------------------------------------
-        # Remove Existing Architecture (Optional)
+        # Remove Existing Architecture
         # Keep only the latest architecture per project.
         # --------------------------------------------------
 
-        db.query(Architecture).filter(
-            Architecture.project_id == project.id
-        ).delete()
+        (
+            db.query(Architecture)
+            .filter(
+                Architecture.project_id == project.id
+            )
+            .delete()
+        )
 
         # --------------------------------------------------
         # Save Architecture
@@ -136,6 +168,10 @@ class ArchitectureOrchestrator:
             "architecture": architecture,
             "validation": validation_report,
             "confidence_score": confidence_score,
-            "sections_generated": len(generated_sections),
-            "generated_sections": list(generated_sections.keys()),
+            "sections_generated": len(
+                generated_sections
+            ),
+            "generated_sections": list(
+                generated_sections.keys()
+            ),
         }
