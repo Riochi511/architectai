@@ -9,7 +9,16 @@ class LLMGateway:
     """
     Central gateway for all LLM interactions in ArchitectAI.
 
-    Agents must communicate with the LLM through this gateway.
+    Agents communicate with the LLM exclusively through this gateway.
+
+    The gateway is responsible for:
+    - provider configuration
+    - model selection
+    - request formatting
+    - structured response requests
+    - timeout handling
+    - transient provider retries
+
     Agents should never know which provider or model is being used.
     """
 
@@ -36,6 +45,12 @@ class LLMGateway:
                 },
             ],
             "temperature": temperature,
+
+            # Give slower LLM responses enough time to complete.
+            "timeout": 180,
+
+            # Retry transient provider/network failures.
+            "num_retries": 2,
         }
 
         if response_format is not None:
@@ -43,4 +58,11 @@ class LLMGateway:
 
         response = completion(**request)
 
-        return response["choices"][0]["message"]["content"].strip()
+        content = response["choices"][0]["message"]["content"]
+
+        if not content:
+            raise RuntimeError(
+                "LLM provider returned an empty response."
+            )
+
+        return content.strip()
