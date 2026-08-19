@@ -3,62 +3,119 @@ def calculate_confidence(
     validation: dict,
 ) -> int:
     """
-    Calculates the overall quality score of the generated
-    requirements.
+    Calculates a deterministic Requirements Readiness score.
 
-    The score is deterministic.
+    The score measures how defensible and architect-ready the
+    generated requirements are.
 
     Maximum score = 100.
     """
 
-    score = 0
+    score = 100
+
+    issues = validation.get("issues", [])
+    warnings = validation.get("warnings", [])
 
     # --------------------------------------------------
-    # Requirements Sections
+    # Validation penalties
     # --------------------------------------------------
 
-    if requirements.get("business_requirements"):
-        score += 10
+    score -= min(
+        len(issues) * 15,
+        45,
+    )
 
-    if requirements.get("functional_requirements"):
-        score += 20
-
-    if requirements.get("non_functional_requirements"):
-        score += 15
-
-    if requirements.get("business_rules"):
-        score += 10
-
-    if requirements.get("user_stories"):
-        score += 10
-
-    if requirements.get("acceptance_criteria"):
-        score += 10
-
-    if requirements.get("use_cases"):
-        score += 10
-
-    if requirements.get("constraints"):
-        score += 5
-
-    if requirements.get("risks"):
-        score += 5
-
-    if requirements.get("assumptions"):
-        score += 5
+    score -= min(
+        len(warnings) * 3,
+        15,
+    )
 
     # --------------------------------------------------
-    # Validation Penalties
+    # Core requirement coverage
     # --------------------------------------------------
 
-    score -= len(validation.get("issues", [])) * 5
+    if not requirements.get(
+        "business_requirements"
+    ):
+        score -= 15
 
-    score -= len(validation.get("warnings", [])) * 2
+    if not requirements.get(
+        "functional_requirements"
+    ):
+        score -= 20
 
-    score -= len(validation.get("missing_sections", [])) * 3
+    if not requirements.get(
+        "non_functional_requirements"
+    ):
+        score -= 15
 
-    score = max(score, 0)
+    # --------------------------------------------------
+    # Supporting artifacts
+    #
+    # These improve readiness but are not universally
+    # required for every project.
+    # --------------------------------------------------
 
-    score = min(score, 100)
+    if not requirements.get(
+        "acceptance_criteria"
+    ):
+        score -= 4
 
-    return score
+    if not requirements.get(
+        "use_cases"
+    ):
+        score -= 2
+
+    if not requirements.get(
+        "risks"
+    ):
+        score -= 3
+
+    # --------------------------------------------------
+    # Open questions
+    #
+    # Unknowns are not automatically defects.
+    # They only reduce readiness when several material
+    # questions remain unresolved.
+    # --------------------------------------------------
+
+    open_questions = requirements.get(
+        "open_questions",
+        [],
+    )
+
+    if len(open_questions) >= 6:
+        score -= 10
+
+    elif len(open_questions) >= 4:
+        score -= 6
+
+    elif len(open_questions) >= 2:
+        score -= 3
+
+    # --------------------------------------------------
+    # Assumptions
+    #
+    # A small number of explicit assumptions is acceptable.
+    # Excessive assumptions indicate unresolved discovery.
+    # --------------------------------------------------
+
+    assumptions = requirements.get(
+        "assumptions",
+        [],
+    )
+
+    if len(assumptions) >= 5:
+        score -= 6
+
+    elif len(assumptions) >= 3:
+        score -= 3
+
+    # --------------------------------------------------
+    # Clamp
+    # --------------------------------------------------
+
+    return max(
+        0,
+        min(score, 100),
+    )
