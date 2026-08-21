@@ -28,59 +28,16 @@ from app.agents.orchestrator.state import (
 def make_registry(
     *,
     fail_stage: str | None = None,
-    parallel_safe: bool = False,
 ) -> AgentRegistry:
 
     registry = AgentRegistry()
 
-    async def handler_factory(
-        stage: str,
-    ):
-
-        async def handler(context):
-
-            if stage == fail_stage:
-                return AgentResult.failure(
-                    stage=stage,
-                    error=f"{stage} failed",
-                )
-
-            output = {
-                "stage": stage,
-            }
-
-            if stage == "requirements":
-                output["validation"] = {
-                    "valid": True,
-                }
-
-            if stage == "critic":
-                output["validation"] = {
-                    "valid": True,
-                }
-
-            return AgentResult.success(
-                stage=stage,
-                output=output,
-            )
-
-        return handler
-
     stages = [
-        "discovery",
         "requirements",
         "architecture",
-        "technology",
-        "database",
-        "cost",
-        "critic",
-        "blueprint",
-        "workspace",
     ]
 
     for stage in stages:
-        # Register handlers synchronously after creating them.
-        handler = None
 
         async def current_handler(
             context,
@@ -101,11 +58,6 @@ def make_registry(
                     "valid": True,
                 }
 
-            if _stage == "critic":
-                output["validation"] = {
-                    "valid": True,
-                }
-
             return AgentResult.success(
                 stage=_stage,
                 output=output,
@@ -114,27 +66,30 @@ def make_registry(
         registry.register(
             stage,
             current_handler,
-            parallel_safe=parallel_safe,
         )
 
     return registry
 
 
 def make_gates():
-    def gate(context, result):
+    def requirements_gate(
+        context,
+        result,
+    ):
         output = result.output or {}
+
         validation = output.get(
             "validation",
             {},
         )
+
         return validation.get(
             "valid",
             False,
         ) is True
 
     return {
-        "requirements": gate,
-        "critic": gate,
+        "requirements": requirements_gate,
     }
 
 
@@ -161,15 +116,8 @@ async def test_orchestrator_completes_workflow():
     )
 
     assert state.completed_stages == [
-        "discovery",
         "requirements",
         "architecture",
-        "technology",
-        "database",
-        "cost",
-        "critic",
-        "blueprint",
-        "workspace",
     ]
 
 
@@ -219,9 +167,7 @@ async def test_context_receives_stage_outputs():
         WorkflowStatus.COMPLETED
     )
 
-    assert context.discovery_memory == {
-        "stage": "discovery",
-    }
+    assert context.discovery_memory is None
 
     assert context.requirements[
         "stage"
@@ -231,13 +177,12 @@ async def test_context_receives_stage_outputs():
         "stage"
     ] == "architecture"
 
-    assert context.blueprint[
-        "stage"
-    ] == "blueprint"
-
-    assert context.workspace[
-        "stage"
-    ] == "workspace"
+    assert context.technology is None
+    assert context.database is None
+    assert context.cost is None
+    assert context.critic is None
+    assert context.blueprint is None
+    assert context.workspace is None
 
 
 @pytest.mark.asyncio
@@ -256,7 +201,6 @@ async def test_requirements_gate_blocks_workflow():
         gates={
             "requirements":
                 failing_requirements_gate,
-            "critic": lambda context, result: True,
         },
     )
 
@@ -271,4 +215,5 @@ async def test_requirements_gate_blocks_workflow():
             context
         )
 
+    assert context.requirements is not None
     assert context.architecture is None

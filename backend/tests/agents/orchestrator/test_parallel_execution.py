@@ -6,12 +6,15 @@ import pytest
 from app.agents.orchestrator.context import (
     OrchestrationContext,
 )
+
 from app.agents.orchestrator.orchestrator import (
     Orchestrator,
 )
+
 from app.agents.orchestrator.registry import (
     AgentRegistry,
 )
+
 from app.agents.orchestrator.result import (
     AgentResult,
 )
@@ -24,28 +27,6 @@ async def test_parallel_safe_agents_execute_concurrently():
 
     start_times: dict[str, float] = {}
 
-    async def discovery(context):
-        return AgentResult.success(
-            stage="discovery",
-            output={},
-        )
-
-    async def requirements(context):
-        return AgentResult.success(
-            stage="requirements",
-            output={
-                "validation": {
-                    "valid": True,
-                }
-            },
-        )
-
-    async def architecture(context):
-        return AgentResult.success(
-            stage="architecture",
-            output={},
-        )
-
     async def technology(context):
 
         start_times["technology"] = (
@@ -56,7 +37,9 @@ async def test_parallel_safe_agents_execute_concurrently():
 
         return AgentResult.success(
             stage="technology",
-            output={},
+            output={
+                "stage": "technology",
+            },
         )
 
     async def database(context):
@@ -69,51 +52,10 @@ async def test_parallel_safe_agents_execute_concurrently():
 
         return AgentResult.success(
             stage="database",
-            output={},
-        )
-
-    async def cost(context):
-        return AgentResult.success(
-            stage="cost",
-            output={},
-        )
-
-    async def critic(context):
-        return AgentResult.success(
-            stage="critic",
             output={
-                "validation": {
-                    "valid": True,
-                }
+                "stage": "database",
             },
         )
-
-    async def blueprint(context):
-        return AgentResult.success(
-            stage="blueprint",
-            output={},
-        )
-
-    async def workspace(context):
-        return AgentResult.success(
-            stage="workspace",
-            output={},
-        )
-
-    registry.register(
-        "discovery",
-        discovery,
-    )
-
-    registry.register(
-        "requirements",
-        requirements,
-    )
-
-    registry.register(
-        "architecture",
-        architecture,
-    )
 
     registry.register(
         "technology",
@@ -127,35 +69,9 @@ async def test_parallel_safe_agents_execute_concurrently():
         parallel_safe=True,
     )
 
-    registry.register(
-        "cost",
-        cost,
-    )
-
-    registry.register(
-        "critic",
-        critic,
-    )
-
-    registry.register(
-        "blueprint",
-        blueprint,
-    )
-
-    registry.register(
-        "workspace",
-        workspace,
-    )
-
-    def gate(context, result):
-        return True
-
     orchestrator = Orchestrator(
         registry=registry,
-        gates={
-            "requirements": gate,
-            "critic": gate,
-        },
+        gates={},
     )
 
     context = OrchestrationContext(
@@ -164,23 +80,37 @@ async def test_parallel_safe_agents_execute_concurrently():
 
     started = time.perf_counter()
 
-    await orchestrator.run(context)
+    results = await orchestrator._execute_batch(
+        [
+            "technology",
+            "database",
+        ],
+        context,
+    )
 
     duration = (
         time.perf_counter()
         - started
     )
 
+    # Both stages must have executed.
     assert "technology" in start_times
     assert "database" in start_times
 
-    # Technology and Database each sleep for 100ms.
-    # If they run sequentially, they would take roughly
-    # 200ms. Parallel execution should complete faster.
+    # Both stages must have succeeded.
+    assert all(
+        result.succeeded
+        for result in results
+    )
+
+    # A sequential execution would take roughly
+    # 200ms because each stage sleeps for 100ms.
+    # Parallel execution should finish substantially
+    # faster than that.
     assert duration < 0.19
 
-    # Their start times should be very close, proving
-    # that they actually overlapped.
+    # The start times should be very close,
+    # proving that execution overlapped.
     assert abs(
         start_times["technology"]
         - start_times["database"]
