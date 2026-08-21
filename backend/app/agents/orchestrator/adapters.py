@@ -5,6 +5,9 @@ from sqlalchemy.orm import Session
 from app.agents.architecture.orchestrator import (
     ArchitectureOrchestrator,
 )
+from app.agents.discovery.schemas import (
+    DiscoveryStage,
+)
 from app.agents.requirements.engine import (
     RequirementsEngine,
 )
@@ -37,6 +40,41 @@ def _get_project(
         )
 
     return project
+
+
+def make_discovery_adapter(
+    db: Session,
+):
+    """
+    Adapt the completed Discovery state to the
+    generic orchestrator agent contract.
+
+    Discovery itself remains interactive and is handled
+    by DiscoveryEngine through the Discovery API.
+
+    This adapter only allows the orchestrator to consume
+    the completed discovery result.
+    """
+
+    async def handler(
+        context: OrchestrationContext,
+    ) -> dict:
+        project = _get_project(
+            db=db,
+            context=context,
+        )
+
+        if (
+            project.discovery_stage
+            != DiscoveryStage.COMPLETE.value
+        ):
+            raise ValueError(
+                "Project discovery is not complete."
+            )
+
+        return project.discovery_memory or {}
+
+    return handler
 
 
 def make_requirements_adapter(

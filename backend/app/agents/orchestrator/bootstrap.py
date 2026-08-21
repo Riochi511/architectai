@@ -2,21 +2,35 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from app.agents.orchestrator.registry import AgentRegistry
-from app.agents.orchestrator.orchestrator import Orchestrator
-from app.agents.orchestrator.gates import requirements_gate
 from app.agents.orchestrator.adapters import (
-    make_requirements_adapter,
     make_architecture_adapter,
+    make_discovery_adapter,
+    make_requirements_adapter,
+)
+from app.agents.orchestrator.gates import (
+    requirements_gate,
+)
+from app.agents.orchestrator.orchestrator import (
+    Orchestrator,
+)
+from app.agents.orchestrator.registry import (
+    AgentRegistry,
 )
 
 
-def build_registry(db: Session) -> AgentRegistry:
+def build_registry(
+    db: Session,
+) -> AgentRegistry:
     """
     Build the central ArchitectAI agent registry.
     """
 
     registry = AgentRegistry()
+
+    registry.register(
+        "discovery",
+        make_discovery_adapter(db),
+    )
 
     registry.register(
         "requirements",
@@ -41,7 +55,9 @@ def build_gates() -> dict:
     }
 
 
-def build_orchestrator(db: Session) -> Orchestrator:
+def build_orchestrator(
+    db: Session,
+) -> Orchestrator:
     """
     Construct the application-level orchestrator.
     """
