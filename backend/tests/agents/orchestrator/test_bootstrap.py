@@ -19,6 +19,8 @@ def test_build_registry_registers_active_agents():
         "discovery",
         "requirements",
         "architecture",
+        "technology",
+        "database",
     ]
 
 
@@ -35,6 +37,14 @@ def test_build_registry_registers_expected_handlers():
 
     assert registry.contains(
         "architecture"
+    )
+
+    assert registry.contains(
+        "technology"
+    )
+
+    assert registry.contains(
+        "database"
     )
 
 

@@ -47,6 +47,24 @@ WORKFLOW: tuple[WorkflowStage, ...] = (
         name="architecture",
         depends_on=("requirements",),
     ),
+
+    # ------------------------------------------------------
+    # Technology
+    # ------------------------------------------------------
+
+    WorkflowStage(
+        name="technology",
+        depends_on=("architecture",),
+    ),
+
+    # ------------------------------------------------------
+    # Database
+    # ------------------------------------------------------
+
+    WorkflowStage(
+        name="database",
+        depends_on=("technology",),
+    ),
 )
 
 

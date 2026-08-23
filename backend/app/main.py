@@ -6,6 +6,9 @@ from app.api.users import router as users_router
 from app.api.projects import router as projects_router
 from app.api.requirements import router as requirements_router
 from app.api.architectures import router as architectures_router
+from app.api.orchestration import (
+    router as orchestration_router,
+)
 
 from app.agents.discovery.router import router as discovery_router
 
@@ -37,6 +40,7 @@ app.include_router(users_router)
 app.include_router(projects_router)
 app.include_router(requirements_router)
 app.include_router(architectures_router)
+app.include_router(orchestration_router)
 
 # Discovery Engine
 app.include_router(discovery_router)

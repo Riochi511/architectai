@@ -35,6 +35,8 @@ def make_registry(
     stages = [
         "requirements",
         "architecture",
+        "technology",
+        "database",
     ]
 
     for stage in stages:
@@ -58,10 +60,12 @@ def make_registry(
                     "valid": True,
                 }
 
-            return AgentResult.success(
+            registry_output = AgentResult.success(
                 stage=_stage,
                 output=output,
             )
+
+            return registry_output
 
         registry.register(
             stage,
@@ -118,6 +122,8 @@ async def test_orchestrator_completes_workflow():
     assert state.completed_stages == [
         "requirements",
         "architecture",
+        "technology",
+        "database",
     ]
 
 
@@ -177,8 +183,14 @@ async def test_context_receives_stage_outputs():
         "stage"
     ] == "architecture"
 
-    assert context.technology is None
-    assert context.database is None
+    assert context.technology[
+        "stage"
+    ] == "technology"
+
+    assert context.database[
+        "stage"
+    ] == "database"
+
     assert context.cost is None
     assert context.critic is None
     assert context.blueprint is None
@@ -217,3 +229,5 @@ async def test_requirements_gate_blocks_workflow():
 
     assert context.requirements is not None
     assert context.architecture is None
+    assert context.technology is None
+    assert context.database is None

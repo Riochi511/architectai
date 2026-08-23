@@ -4,8 +4,10 @@ from sqlalchemy.orm import Session
 
 from app.agents.orchestrator.adapters import (
     make_architecture_adapter,
+    make_database_adapter,
     make_discovery_adapter,
     make_requirements_adapter,
+    make_technology_adapter,
 )
 from app.agents.orchestrator.gates import (
     requirements_gate,
@@ -40,6 +42,16 @@ def build_registry(
     registry.register(
         "architecture",
         make_architecture_adapter(db),
+    )
+
+    registry.register(
+        "technology",
+        make_technology_adapter(db),
+    )
+
+    registry.register(
+        "database",
+        make_database_adapter(db),
     )
 
     return registry

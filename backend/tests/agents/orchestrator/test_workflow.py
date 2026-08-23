@@ -5,11 +5,16 @@ from app.agents.orchestrator.workflow import (
 
 
 def test_workflow_contains_expected_stages():
-    stages = [stage.name for stage in WORKFLOW]
+    stages = [
+        stage.name
+        for stage in WORKFLOW
+    ]
 
     assert stages == [
         "requirements",
         "architecture",
+        "technology",
+        "database",
     ]
 
 
@@ -37,14 +42,36 @@ def test_architecture_does_not_require_quality_gate():
     ].gate_after is False
 
 
+def test_technology_depends_on_architecture():
+    assert WORKFLOW_BY_NAME[
+        "technology"
+    ].depends_on == ("architecture",)
+
+
+def test_technology_does_not_require_quality_gate():
+    assert WORKFLOW_BY_NAME[
+        "technology"
+    ].gate_after is False
+
+
+def test_database_depends_on_technology():
+    assert WORKFLOW_BY_NAME[
+        "database"
+    ].depends_on == ("technology",)
+
+
+def test_database_does_not_require_quality_gate():
+    assert WORKFLOW_BY_NAME[
+        "database"
+    ].gate_after is False
+
+
 def test_workflow_does_not_include_interactive_discovery():
     assert "discovery" not in WORKFLOW_BY_NAME
 
 
 def test_workflow_does_not_include_unimplemented_future_stages():
     future_stages = {
-        "technology",
-        "database",
         "cost",
         "critic",
         "blueprint",
