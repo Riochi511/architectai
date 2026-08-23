@@ -64,6 +64,10 @@ class Project(Base):
         default=dict
     )
 
+    # -----------------------------
+    # Relationships
+    # -----------------------------
+
     owner = relationship(
         "User",
         back_populates="projects",
@@ -79,4 +83,11 @@ class Project(Base):
         "Architecture",
         back_populates="project",
         cascade="all, delete-orphan",
+    )
+
+    orchestration_runs = relationship(
+        "OrchestrationRun",
+        back_populates="project",
+        cascade="all, delete-orphan",
+        order_by="OrchestrationRun.created_at",
     )
