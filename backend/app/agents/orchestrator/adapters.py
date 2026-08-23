@@ -37,6 +37,45 @@ from app.agents.database.validator import (
 from app.agents.database.confidence import (
     calculate_confidence as calculate_database_confidence,
 )
+from app.agents.cost.engine import (
+    CostEngine,
+)
+from app.agents.cost.prompts import (
+    SYSTEM_PROMPT as COST_SYSTEM_PROMPT,
+    COST_ESTIMATION_PROMPT,
+)
+from app.agents.cost.validator import (
+    validate as validate_cost,
+)
+from app.agents.cost.confidence import (
+    calculate_confidence as calculate_cost_confidence,
+)
+from app.agents.critic.engine import (
+    CriticEngine,
+)
+from app.agents.critic.prompts import (
+    SYSTEM_PROMPT as CRITIC_SYSTEM_PROMPT,
+    CRITIC_PROMPT,
+)
+from app.agents.critic.validator import (
+    validate as validate_critic,
+)
+from app.agents.critic.confidence import (
+    calculate_confidence as calculate_critic_confidence,
+)
+from app.agents.blueprint.engine import (
+    BlueprintEngine,
+)
+from app.agents.blueprint.prompts import (
+    SYSTEM_PROMPT as BLUEPRINT_SYSTEM_PROMPT,
+    BLUEPRINT_PROMPT,
+)
+from app.agents.blueprint.validator import (
+    validate as validate_blueprint,
+)
+from app.agents.blueprint.confidence import (
+    calculate_confidence as calculate_blueprint_confidence,
+)
 from app.agents.orchestrator.context import (
     OrchestrationContext,
 )
@@ -47,9 +86,6 @@ def _get_project(
     db: Session,
     context: OrchestrationContext,
 ) -> Project:
-    """
-    Resolve the project associated with the orchestration context.
-    """
 
     project = (
         db.query(Project)
@@ -71,20 +107,11 @@ def _get_project(
 def make_discovery_adapter(
     db: Session,
 ):
-    """
-    Adapt the completed Discovery state to the
-    generic orchestrator agent contract.
-
-    Discovery itself remains interactive and is handled
-    by DiscoveryEngine through the Discovery API.
-
-    This adapter only allows the orchestrator to consume
-    the completed discovery result.
-    """
 
     async def handler(
         context: OrchestrationContext,
     ) -> dict:
+
         project = _get_project(
             db=db,
             context=context,
@@ -106,16 +133,13 @@ def make_discovery_adapter(
 def make_requirements_adapter(
     db: Session,
 ):
-    """
-    Adapt RequirementsEngine to the generic
-    orchestrator agent contract.
-    """
 
     engine = RequirementsEngine()
 
     async def handler(
         context: OrchestrationContext,
     ) -> dict:
+
         project = _get_project(
             db=db,
             context=context,
@@ -132,16 +156,13 @@ def make_requirements_adapter(
 def make_architecture_adapter(
     db: Session,
 ):
-    """
-    Adapt ArchitectureOrchestrator to the generic
-    orchestrator agent contract.
-    """
 
     engine = ArchitectureOrchestrator()
 
     async def handler(
         context: OrchestrationContext,
     ) -> dict:
+
         project = _get_project(
             db=db,
             context=context,
@@ -158,19 +179,6 @@ def make_architecture_adapter(
 def make_technology_adapter(
     db: Session,
 ):
-    """
-    Adapt TechnologyEngine to the generic
-    orchestrator agent contract.
-
-    Technology consumes:
-
-    - completed discovery memory
-    - validated requirements
-    - generated architecture
-
-    The adapter does not modify orchestration state directly.
-    It returns a structured result for the Orchestrator to store.
-    """
 
     engine = TechnologyEngine()
 
@@ -229,12 +237,8 @@ def make_technology_adapter(
                 "name": project.name,
                 "description": project.description,
             },
-            "discovery_memory": (
-                context.discovery_memory
-            ),
-            "requirements": (
-                context.requirements
-            ),
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
             "architecture": architecture_document,
             "architecture_validation": (
                 context.architecture.get(
@@ -278,21 +282,6 @@ def make_technology_adapter(
 def make_database_adapter(
     db: Session,
 ):
-    """
-    Adapt DatabaseEngine to the generic
-    orchestrator agent contract.
-
-    Database design consumes:
-
-    - completed discovery memory
-    - validated requirements
-    - generated architecture
-    - approved technology decisions
-
-    The adapter generates the database design, validates it,
-    calculates database readiness, and returns the structured
-    result to the Orchestrator.
-    """
 
     engine = DatabaseEngine()
 
@@ -351,14 +340,16 @@ def make_database_adapter(
                 "is empty."
             )
 
-        technology_document = context.technology.get(
-            "technology_document"
+        technology_document = (
+            context.technology.get(
+                "technology_document"
+            )
         )
 
         if not technology_document:
             raise ValueError(
                 "Technology output does not contain "
-                "the generated technology document."
+                "the technology decisions document."
             )
 
         project_context = {
@@ -367,24 +358,9 @@ def make_database_adapter(
                 "name": project.name,
                 "description": project.description,
             },
-            "discovery_memory": (
-                context.discovery_memory
-            ),
-            "requirements": (
-                context.requirements
-            ),
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
             "architecture": architecture_document,
-            "architecture_validation": (
-                context.architecture.get(
-                    "validation",
-                    {},
-                )
-            ),
-            "architecture_confidence": (
-                context.architecture.get(
-                    "confidence_score"
-                )
-            ),
             "technology": technology_document,
             "technology_validation": (
                 context.technology.get(
@@ -418,6 +394,498 @@ def make_database_adapter(
 
         return {
             "database_document": document,
+            "validation": validation,
+            "confidence_score": confidence_score,
+        }
+
+    return handler
+
+
+def make_cost_adapter(
+    db: Session,
+):
+
+    engine = CostEngine()
+
+    async def handler(
+        context: OrchestrationContext,
+    ) -> dict:
+
+        project = _get_project(
+            db=db,
+            context=context,
+        )
+
+        if not context.discovery_memory:
+            raise ValueError(
+                "Discovery memory is required "
+                "before cost estimation."
+            )
+
+        if not context.requirements:
+            raise ValueError(
+                "Requirements are required "
+                "before cost estimation."
+            )
+
+        if not context.architecture:
+            raise ValueError(
+                "Architecture is required "
+                "before cost estimation."
+            )
+
+        if not context.technology:
+            raise ValueError(
+                "Technology decisions are required "
+                "before cost estimation."
+            )
+
+        if not context.database:
+            raise ValueError(
+                "Database design is required "
+                "before cost estimation."
+            )
+
+        architecture_record = context.architecture.get(
+            "architecture"
+        )
+
+        if architecture_record is None:
+            raise ValueError(
+                "Architecture output does not contain "
+                "the generated architecture."
+            )
+
+        architecture_document = getattr(
+            architecture_record,
+            "content",
+            None,
+        )
+
+        if not architecture_document:
+            raise ValueError(
+                "Generated architecture document "
+                "is empty."
+            )
+
+        technology_document = (
+            context.technology.get(
+                "technology_document"
+            )
+        )
+
+        if not technology_document:
+            raise ValueError(
+                "Technology output does not contain "
+                "the technology decisions document."
+            )
+
+        database_document = (
+            context.database.get(
+                "database_document"
+            )
+        )
+
+        if not database_document:
+            raise ValueError(
+                "Database output does not contain "
+                "the database design document."
+            )
+
+        project_context = {
+            "project": {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+            },
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
+            "architecture": architecture_document,
+            "technology": technology_document,
+            "database": database_document,
+            "architecture_validation": (
+                context.architecture.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "architecture_confidence": (
+                context.architecture.get(
+                    "confidence_score"
+                )
+            ),
+            "technology_validation": (
+                context.technology.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "technology_confidence": (
+                context.technology.get(
+                    "confidence_score"
+                )
+            ),
+            "database_validation": (
+                context.database.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "database_confidence": (
+                context.database.get(
+                    "confidence_score"
+                )
+            ),
+        }
+
+        document = engine.generate(
+            system_prompt=COST_SYSTEM_PROMPT,
+            section_prompt=COST_ESTIMATION_PROMPT,
+            project_context=project_context,
+        )
+
+        validation = validate_cost(
+            document=document,
+            project_context=project_context,
+        )
+
+        confidence_score = (
+            calculate_cost_confidence(
+                validation
+            )
+        )
+
+        return {
+            "cost_document": document,
+            "validation": validation,
+            "confidence_score": confidence_score,
+        }
+
+    return handler
+
+
+def make_critic_adapter(
+    db: Session,
+):
+
+    engine = CriticEngine()
+
+    async def handler(
+        context: OrchestrationContext,
+    ) -> dict:
+
+        project = _get_project(
+            db=db,
+            context=context,
+        )
+
+        required_context = {
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
+            "architecture": context.architecture,
+            "technology": context.technology,
+            "database": context.database,
+            "cost": context.cost,
+        }
+
+        for name, value in required_context.items():
+
+            if not value:
+                raise ValueError(
+                    f"{name.replace('_', ' ').title()} "
+                    "is required before Critic."
+                )
+
+        architecture_record = context.architecture.get(
+            "architecture"
+        )
+
+        if architecture_record is None:
+            raise ValueError(
+                "Architecture output does not contain "
+                "the generated architecture."
+            )
+
+        architecture_document = getattr(
+            architecture_record,
+            "content",
+            None,
+        )
+
+        if not architecture_document:
+            raise ValueError(
+                "Generated architecture document "
+                "is empty."
+            )
+
+        technology_document = (
+            context.technology.get(
+                "technology_document"
+            )
+        )
+
+        database_document = (
+            context.database.get(
+                "database_document"
+            )
+        )
+
+        cost_document = (
+            context.cost.get(
+                "cost_document"
+            )
+        )
+
+        if not technology_document:
+            raise ValueError(
+                "Technology output does not contain "
+                "the technology decisions document."
+            )
+
+        if not database_document:
+            raise ValueError(
+                "Database output does not contain "
+                "the database design document."
+            )
+
+        if not cost_document:
+            raise ValueError(
+                "Cost output does not contain "
+                "the cost estimation document."
+            )
+
+        project_context = {
+            "project": {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+            },
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
+            "architecture": architecture_document,
+            "technology": technology_document,
+            "database": database_document,
+            "cost": cost_document,
+        }
+
+        document = engine.generate(
+            system_prompt=CRITIC_SYSTEM_PROMPT,
+            section_prompt=CRITIC_PROMPT,
+            project_context=project_context,
+        )
+
+        validation = validate_critic(
+            document=document,
+            project_context=project_context,
+        )
+
+        confidence_score = (
+            calculate_critic_confidence(
+                validation
+            )
+        )
+
+        return {
+            "critic_document": document,
+            "validation": validation,
+            "confidence_score": confidence_score,
+        }
+
+    return handler
+
+
+def make_blueprint_adapter(
+    db: Session,
+):
+
+    engine = BlueprintEngine()
+
+    async def handler(
+        context: OrchestrationContext,
+    ) -> dict:
+
+        project = _get_project(
+            db=db,
+            context=context,
+        )
+
+        required_context = {
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
+            "architecture": context.architecture,
+            "technology": context.technology,
+            "database": context.database,
+            "cost": context.cost,
+            "critic": context.critic,
+        }
+
+        for name, value in required_context.items():
+
+            if not value:
+                raise ValueError(
+                    f"{name.replace('_', ' ').title()} "
+                    "is required before Blueprint."
+                )
+
+        architecture_record = context.architecture.get(
+            "architecture"
+        )
+
+        if architecture_record is None:
+            raise ValueError(
+                "Architecture output does not contain "
+                "the generated architecture."
+            )
+
+        architecture_document = getattr(
+            architecture_record,
+            "content",
+            None,
+        )
+
+        if not architecture_document:
+            raise ValueError(
+                "Generated architecture document "
+                "is empty."
+            )
+
+        technology_document = (
+            context.technology.get(
+                "technology_document"
+            )
+        )
+
+        database_document = (
+            context.database.get(
+                "database_document"
+            )
+        )
+
+        cost_document = (
+            context.cost.get(
+                "cost_document"
+            )
+        )
+
+        critic_document = (
+            context.critic.get(
+                "critic_document"
+            )
+        )
+
+        if not technology_document:
+            raise ValueError(
+                "Technology output does not contain "
+                "the technology decisions document."
+            )
+
+        if not database_document:
+            raise ValueError(
+                "Database output does not contain "
+                "the database design document."
+            )
+
+        if not cost_document:
+            raise ValueError(
+                "Cost output does not contain "
+                "the cost estimation document."
+            )
+
+        if not critic_document:
+            raise ValueError(
+                "Critic output does not contain "
+                "the governance critique."
+            )
+
+        project_context = {
+            "project": {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+            },
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
+            "architecture": architecture_document,
+            "technology": technology_document,
+            "database": database_document,
+            "cost": cost_document,
+            "critic": critic_document,
+            "architecture_validation": (
+                context.architecture.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "architecture_confidence": (
+                context.architecture.get(
+                    "confidence_score"
+                )
+            ),
+            "technology_validation": (
+                context.technology.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "technology_confidence": (
+                context.technology.get(
+                    "confidence_score"
+                )
+            ),
+            "database_validation": (
+                context.database.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "database_confidence": (
+                context.database.get(
+                    "confidence_score"
+                )
+            ),
+            "cost_validation": (
+                context.cost.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "cost_confidence": (
+                context.cost.get(
+                    "confidence_score"
+                )
+            ),
+            "critic_validation": (
+                context.critic.get(
+                    "validation",
+                    {},
+                )
+            ),
+            "critic_confidence": (
+                context.critic.get(
+                    "confidence_score"
+                )
+            ),
+        }
+
+        document = engine.generate(
+            system_prompt=BLUEPRINT_SYSTEM_PROMPT,
+            section_prompt=BLUEPRINT_PROMPT,
+            project_context=project_context,
+        )
+
+        validation = validate_blueprint(
+            document=document,
+            project_context=project_context,
+        )
+
+        confidence_score = (
+            calculate_blueprint_confidence(
+                validation
+            )
+        )
+
+        return {
+            "blueprint_document": document,
             "validation": validation,
             "confidence_score": confidence_score,
         }

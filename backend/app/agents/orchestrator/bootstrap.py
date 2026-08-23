@@ -4,17 +4,23 @@ from sqlalchemy.orm import Session
 
 from app.agents.orchestrator.adapters import (
     make_architecture_adapter,
+    make_blueprint_adapter,
+    make_cost_adapter,
+    make_critic_adapter,
     make_database_adapter,
     make_discovery_adapter,
     make_requirements_adapter,
     make_technology_adapter,
 )
+
 from app.agents.orchestrator.gates import (
     requirements_gate,
 )
+
 from app.agents.orchestrator.orchestrator import (
     Orchestrator,
 )
+
 from app.agents.orchestrator.registry import (
     AgentRegistry,
 )
@@ -54,12 +60,29 @@ def build_registry(
         make_database_adapter(db),
     )
 
+    registry.register(
+        "cost",
+        make_cost_adapter(db),
+    )
+
+    registry.register(
+        "critic",
+        make_critic_adapter(db),
+    )
+
+    registry.register(
+        "blueprint",
+        make_blueprint_adapter(db),
+    )
+
     return registry
 
 
 def build_gates() -> dict:
     """
     Build quality gates for the active workflow.
+
+    Requirements remains the mandatory workflow gate.
     """
 
     return {

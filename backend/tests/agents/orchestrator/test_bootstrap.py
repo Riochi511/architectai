@@ -21,6 +21,9 @@ def test_build_registry_registers_active_agents():
         "architecture",
         "technology",
         "database",
+        "cost",
+        "critic",
+        "blueprint",
     ]
 
 
@@ -47,6 +50,18 @@ def test_build_registry_registers_expected_handlers():
         "database"
     )
 
+    assert registry.contains(
+        "cost"
+    )
+
+    assert registry.contains(
+        "critic"
+    )
+
+    assert registry.contains(
+        "blueprint"
+    )
+
 
 def test_build_gates_registers_requirements_gate():
     gates = build_gates()
@@ -61,3 +76,5 @@ def test_build_gates_does_not_register_future_gates():
     gates = build_gates()
 
     assert "critic" not in gates
+    assert "blueprint" not in gates
+    assert "workspace" not in gates
