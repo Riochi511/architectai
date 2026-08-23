@@ -8,6 +8,7 @@ from app.agents.orchestrator.registry import (
 
 
 def test_build_registry_registers_active_agents():
+
     registry = build_registry(db=None)
 
     assert isinstance(
@@ -24,10 +25,12 @@ def test_build_registry_registers_active_agents():
         "cost",
         "critic",
         "blueprint",
+        "workforce",
     ]
 
 
 def test_build_registry_registers_expected_handlers():
+
     registry = build_registry(db=None)
 
     assert registry.contains(
@@ -62,8 +65,13 @@ def test_build_registry_registers_expected_handlers():
         "blueprint"
     )
 
+    assert registry.contains(
+        "workforce"
+    )
+
 
 def test_build_gates_registers_requirements_gate():
+
     gates = build_gates()
 
     assert "requirements" in gates
@@ -73,8 +81,9 @@ def test_build_gates_registers_requirements_gate():
 
 
 def test_build_gates_does_not_register_future_gates():
+
     gates = build_gates()
 
     assert "critic" not in gates
     assert "blueprint" not in gates
-    assert "workspace" not in gates
+    assert "workforce" not in gates

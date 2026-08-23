@@ -40,6 +40,7 @@ def make_registry(
         "cost",
         "critic",
         "blueprint",
+        "workforce",
     ]
 
     for stage in stages:
@@ -48,7 +49,9 @@ def make_registry(
             context,
             _stage=stage,
         ):
+
             if _stage == fail_stage:
+
                 return AgentResult.failure(
                     stage=_stage,
                     error=f"{_stage} failed",
@@ -59,6 +62,7 @@ def make_registry(
             }
 
             if _stage == "requirements":
+
                 output["validation"] = {
                     "valid": True,
                 }
@@ -77,10 +81,12 @@ def make_registry(
 
 
 def make_gates():
+
     def requirements_gate(
         context,
         result,
     ):
+
         output = result.output or {}
 
         validation = output.get(
@@ -88,10 +94,13 @@ def make_gates():
             {},
         )
 
-        return validation.get(
-            "valid",
-            False,
-        ) is True
+        return (
+            validation.get(
+                "valid",
+                False,
+            )
+            is True
+        )
 
     return {
         "requirements": requirements_gate,
@@ -128,6 +137,7 @@ async def test_orchestrator_completes_workflow():
         "cost",
         "critic",
         "blueprint",
+        "workforce",
     ]
 
 
@@ -150,6 +160,7 @@ async def test_orchestrator_stops_when_required_stage_fails():
     with pytest.raises(
         GateFailedError
     ):
+
         await orchestrator.run(
             context
         )
@@ -207,6 +218,10 @@ async def test_context_receives_stage_outputs():
         "stage"
     ] == "blueprint"
 
+    assert context.workforce[
+        "stage"
+    ] == "workforce"
+
     assert context.workspace is None
 
 
@@ -219,6 +234,7 @@ async def test_requirements_gate_blocks_workflow():
         context,
         result,
     ):
+
         return False
 
     orchestrator = Orchestrator(
@@ -236,6 +252,7 @@ async def test_requirements_gate_blocks_workflow():
     with pytest.raises(
         GateFailedError
     ):
+
         await orchestrator.run(
             context
         )
@@ -247,3 +264,4 @@ async def test_requirements_gate_blocks_workflow():
     assert context.cost is None
     assert context.critic is None
     assert context.blueprint is None
+    assert context.workforce is None

@@ -76,6 +76,19 @@ from app.agents.blueprint.validator import (
 from app.agents.blueprint.confidence import (
     calculate_confidence as calculate_blueprint_confidence,
 )
+from app.agents.workforce.engine import (
+    WorkforceEngine,
+)
+from app.agents.workforce.prompts import (
+    SYSTEM_PROMPT as WORKFORCE_SYSTEM_PROMPT,
+    WORKFORCE_PROMPT,
+)
+from app.agents.workforce.validator import (
+    validate as validate_workforce,
+)
+from app.agents.workforce.confidence import (
+    calculate_confidence as calculate_workforce_confidence,
+)
 from app.agents.orchestrator.context import (
     OrchestrationContext,
 )
@@ -209,8 +222,10 @@ def make_technology_adapter(
                 "before technology decisions."
             )
 
-        architecture_record = context.architecture.get(
-            "architecture"
+        architecture_record = (
+            context.architecture.get(
+                "architecture"
+            )
         )
 
         if architecture_record is None:
@@ -318,8 +333,10 @@ def make_database_adapter(
                 "before database design."
             )
 
-        architecture_record = context.architecture.get(
-            "architecture"
+        architecture_record = (
+            context.architecture.get(
+                "architecture"
+            )
         )
 
         if architecture_record is None:
@@ -446,8 +463,10 @@ def make_cost_adapter(
                 "before cost estimation."
             )
 
-        architecture_record = context.architecture.get(
-            "architecture"
+        architecture_record = (
+            context.architecture.get(
+                "architecture"
+            )
         )
 
         if architecture_record is None:
@@ -579,32 +598,47 @@ def make_critic_adapter(
             context=context,
         )
 
-        required_context = {
-            "discovery_memory": context.discovery_memory,
-            "requirements": context.requirements,
-            "architecture": context.architecture,
-            "technology": context.technology,
-            "database": context.database,
-            "cost": context.cost,
-        }
-
-        for name, value in required_context.items():
-
-            if not value:
-                raise ValueError(
-                    f"{name.replace('_', ' ').title()} "
-                    "is required before Critic."
-                )
-
-        architecture_record = context.architecture.get(
-            "architecture"
-        )
-
-        if architecture_record is None:
+        if not context.discovery_memory:
             raise ValueError(
-                "Architecture output does not contain "
-                "the generated architecture."
+                "Discovery memory is required "
+                "before Critic review."
             )
+
+        if not context.requirements:
+            raise ValueError(
+                "Requirements are required "
+                "before Critic review."
+            )
+
+        if not context.architecture:
+            raise ValueError(
+                "Architecture is required "
+                "before Critic review."
+            )
+
+        if not context.technology:
+            raise ValueError(
+                "Technology decisions are required "
+                "before Critic review."
+            )
+
+        if not context.database:
+            raise ValueError(
+                "Database design is required "
+                "before Critic review."
+            )
+
+        if not context.cost:
+            raise ValueError(
+                "Cost estimation is required "
+                "before Critic review."
+            )
+
+        architecture_record = (
+            context.architecture.get(
+                "architecture"
+            )
+        )
 
         architecture_document = getattr(
             architecture_record,
@@ -624,29 +658,29 @@ def make_critic_adapter(
             )
         )
 
-        database_document = (
-            context.database.get(
-                "database_document"
-            )
-        )
-
-        cost_document = (
-            context.cost.get(
-                "cost_document"
-            )
-        )
-
         if not technology_document:
             raise ValueError(
                 "Technology output does not contain "
                 "the technology decisions document."
             )
 
+        database_document = (
+            context.database.get(
+                "database_document"
+            )
+        )
+
         if not database_document:
             raise ValueError(
                 "Database output does not contain "
                 "the database design document."
             )
+
+        cost_document = (
+            context.cost.get(
+                "cost_document"
+            )
+        )
 
         if not cost_document:
             raise ValueError(
@@ -709,33 +743,53 @@ def make_blueprint_adapter(
             context=context,
         )
 
-        required_context = {
-            "discovery_memory": context.discovery_memory,
-            "requirements": context.requirements,
-            "architecture": context.architecture,
-            "technology": context.technology,
-            "database": context.database,
-            "cost": context.cost,
-            "critic": context.critic,
-        }
-
-        for name, value in required_context.items():
-
-            if not value:
-                raise ValueError(
-                    f"{name.replace('_', ' ').title()} "
-                    "is required before Blueprint."
-                )
-
-        architecture_record = context.architecture.get(
-            "architecture"
-        )
-
-        if architecture_record is None:
+        if not context.discovery_memory:
             raise ValueError(
-                "Architecture output does not contain "
-                "the generated architecture."
+                "Discovery memory is required "
+                "before Blueprint generation."
             )
+
+        if not context.requirements:
+            raise ValueError(
+                "Requirements are required "
+                "before Blueprint generation."
+            )
+
+        if not context.architecture:
+            raise ValueError(
+                "Architecture is required "
+                "before Blueprint generation."
+            )
+
+        if not context.technology:
+            raise ValueError(
+                "Technology decisions are required "
+                "before Blueprint generation."
+            )
+
+        if not context.database:
+            raise ValueError(
+                "Database design is required "
+                "before Blueprint generation."
+            )
+
+        if not context.cost:
+            raise ValueError(
+                "Cost estimation is required "
+                "before Blueprint generation."
+            )
+
+        if not context.critic:
+            raise ValueError(
+                "Critic review is required "
+                "before Blueprint generation."
+            )
+
+        architecture_record = (
+            context.architecture.get(
+                "architecture"
+            )
+        )
 
         architecture_document = getattr(
             architecture_record,
@@ -794,7 +848,7 @@ def make_blueprint_adapter(
         if not critic_document:
             raise ValueError(
                 "Critic output does not contain "
-                "the governance critique."
+                "the critic document."
             )
 
         project_context = {
@@ -810,61 +864,6 @@ def make_blueprint_adapter(
             "database": database_document,
             "cost": cost_document,
             "critic": critic_document,
-            "architecture_validation": (
-                context.architecture.get(
-                    "validation",
-                    {},
-                )
-            ),
-            "architecture_confidence": (
-                context.architecture.get(
-                    "confidence_score"
-                )
-            ),
-            "technology_validation": (
-                context.technology.get(
-                    "validation",
-                    {},
-                )
-            ),
-            "technology_confidence": (
-                context.technology.get(
-                    "confidence_score"
-                )
-            ),
-            "database_validation": (
-                context.database.get(
-                    "validation",
-                    {},
-                )
-            ),
-            "database_confidence": (
-                context.database.get(
-                    "confidence_score"
-                )
-            ),
-            "cost_validation": (
-                context.cost.get(
-                    "validation",
-                    {},
-                )
-            ),
-            "cost_confidence": (
-                context.cost.get(
-                    "confidence_score"
-                )
-            ),
-            "critic_validation": (
-                context.critic.get(
-                    "validation",
-                    {},
-                )
-            ),
-            "critic_confidence": (
-                context.critic.get(
-                    "confidence_score"
-                )
-            ),
         }
 
         document = engine.generate(
@@ -886,6 +885,189 @@ def make_blueprint_adapter(
 
         return {
             "blueprint_document": document,
+            "validation": validation,
+            "confidence_score": confidence_score,
+        }
+
+    return handler
+
+
+def make_workforce_adapter(
+    db: Session,
+):
+
+    engine = WorkforceEngine()
+
+    async def handler(
+        context: OrchestrationContext,
+    ) -> dict:
+
+        project = _get_project(
+            db=db,
+            context=context,
+        )
+
+        if not context.discovery_memory:
+            raise ValueError(
+                "Discovery memory is required "
+                "before Workforce generation."
+            )
+
+        if not context.requirements:
+            raise ValueError(
+                "Requirements are required "
+                "before Workforce generation."
+            )
+
+        if not context.architecture:
+            raise ValueError(
+                "Architecture is required "
+                "before Workforce generation."
+            )
+
+        if not context.technology:
+            raise ValueError(
+                "Technology decisions are required "
+                "before Workforce generation."
+            )
+
+        if not context.database:
+            raise ValueError(
+                "Database design is required "
+                "before Workforce generation."
+            )
+
+        if not context.cost:
+            raise ValueError(
+                "Cost estimation is required "
+                "before Workforce generation."
+            )
+
+        if not context.critic:
+            raise ValueError(
+                "Critic review is required "
+                "before Workforce generation."
+            )
+
+        if not context.blueprint:
+            raise ValueError(
+                "Blueprint is required "
+                "before Workforce generation."
+            )
+
+        architecture_record = (
+            context.architecture.get(
+                "architecture"
+            )
+        )
+
+        architecture_document = getattr(
+            architecture_record,
+            "content",
+            None,
+        )
+
+        if not architecture_document:
+            raise ValueError(
+                "Generated architecture document "
+                "is empty."
+            )
+
+        technology_document = (
+            context.technology.get(
+                "technology_document"
+            )
+        )
+
+        database_document = (
+            context.database.get(
+                "database_document"
+            )
+        )
+
+        cost_document = (
+            context.cost.get(
+                "cost_document"
+            )
+        )
+
+        critic_document = (
+            context.critic.get(
+                "critic_document"
+            )
+        )
+
+        blueprint_document = (
+            context.blueprint.get(
+                "blueprint_document"
+            )
+        )
+
+        if not technology_document:
+            raise ValueError(
+                "Technology output does not contain "
+                "the technology decisions document."
+            )
+
+        if not database_document:
+            raise ValueError(
+                "Database output does not contain "
+                "the database design document."
+            )
+
+        if not cost_document:
+            raise ValueError(
+                "Cost output does not contain "
+                "the cost estimation document."
+            )
+
+        if not critic_document:
+            raise ValueError(
+                "Critic output does not contain "
+                "the critic document."
+            )
+
+        if not blueprint_document:
+            raise ValueError(
+                "Blueprint output does not contain "
+                "the Blueprint document."
+            )
+
+        project_context = {
+            "project": {
+                "id": project.id,
+                "name": project.name,
+                "description": project.description,
+            },
+            "discovery_memory": context.discovery_memory,
+            "requirements": context.requirements,
+            "architecture": architecture_document,
+            "technology": technology_document,
+            "database": database_document,
+            "cost": cost_document,
+            "critic": critic_document,
+            "blueprint": blueprint_document,
+        }
+
+        document = engine.generate(
+            system_prompt=WORKFORCE_SYSTEM_PROMPT,
+            section_prompt=WORKFORCE_PROMPT,
+            project_context=project_context,
+        )
+
+        validation = validate_workforce(
+            document=document,
+            project_context=project_context,
+        )
+
+        confidence_score = (
+            calculate_workforce_confidence(
+                validation
+            )
+        )
+
+        return {
+            "workforce_document": document,
             "validation": validation,
             "confidence_score": confidence_score,
         }

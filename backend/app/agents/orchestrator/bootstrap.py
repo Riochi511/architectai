@@ -11,27 +11,20 @@ from app.agents.orchestrator.adapters import (
     make_discovery_adapter,
     make_requirements_adapter,
     make_technology_adapter,
+    make_workforce_adapter,
 )
-
-from app.agents.orchestrator.gates import (
-    requirements_gate,
-)
-
 from app.agents.orchestrator.orchestrator import (
     Orchestrator,
-)
-
-from app.agents.orchestrator.registry import (
-    AgentRegistry,
 )
 
 
 def build_registry(
     db: Session,
-) -> AgentRegistry:
-    """
-    Build the central ArchitectAI agent registry.
-    """
+):
+
+    from app.agents.orchestrator.registry import (
+        AgentRegistry,
+    )
 
     registry = AgentRegistry()
 
@@ -75,15 +68,35 @@ def build_registry(
         make_blueprint_adapter(db),
     )
 
+    registry.register(
+        "workforce",
+        make_workforce_adapter(db),
+    )
+
     return registry
 
 
-def build_gates() -> dict:
-    """
-    Build quality gates for the active workflow.
+def build_gates():
 
-    Requirements remains the mandatory workflow gate.
-    """
+    def requirements_gate(
+        context,
+        result,
+    ):
+
+        output = result.output or {}
+
+        validation = output.get(
+            "validation",
+            {},
+        )
+
+        return (
+            validation.get(
+                "valid",
+                False,
+            )
+            is True
+        )
 
     return {
         "requirements": requirements_gate,
@@ -93,9 +106,6 @@ def build_gates() -> dict:
 def build_orchestrator(
     db: Session,
 ) -> Orchestrator:
-    """
-    Construct the application-level orchestrator.
-    """
 
     return Orchestrator(
         registry=build_registry(db),
