@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
@@ -14,6 +16,10 @@ from app.agents.orchestrator.context import (
     OrchestrationContext,
 )
 
+from app.schemas.orchestration import (
+    OrchestrationResponse,
+)
+
 
 router = APIRouter(
     prefix="/orchestration",
@@ -23,12 +29,15 @@ router = APIRouter(
 
 @router.post(
     "/run/{project_id}",
+    response_model=OrchestrationResponse,
+    status_code=status.HTTP_200_OK,
 )
 async def run_project_orchestration(
     project_id: int,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
-):
+) -> OrchestrationResponse:
+
     project = (
         db.query(Project)
         .filter(
@@ -38,7 +47,7 @@ async def run_project_orchestration(
         .first()
     )
 
-    if not project:
+    if project is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Project not found.",
@@ -52,13 +61,30 @@ async def run_project_orchestration(
         db=db,
     )
 
-    state = await orchestrator.run(
-        context,
-    )
+    try:
+        state = await orchestrator.run(
+            context,
+        )
 
-    return {
-        "project_id": project.id,
-        "status": state.status,
-        "completed_stages": state.completed_stages,
-        "current_stage": state.current_stage,
-    }
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Project orchestration failed.",
+        ) from exc
+
+    return OrchestrationResponse(
+        project_id=project.id,
+        status=state.status,
+        completed_stages=state.completed_stages,
+        current_stage=state.current_stage,
+        outputs={
+            "requirements": context.requirements,
+            "architecture": context.architecture,
+            "technology": context.technology,
+            "database": context.database,
+            "cost": context.cost,
+            "critic": context.critic,
+            "blueprint": context.blueprint,
+            "workforce": context.workforce,
+        },
+    )
