@@ -417,6 +417,133 @@ Return JSON only.
 """
 
 
+def _parse_json_response(response) -> dict:
+    """
+    Safely parse an LLM response expected to contain a JSON object.
+
+    The LLM may occasionally return:
+        - raw JSON
+        - ```json fenced JSON
+        - JSON surrounded by incidental text
+
+    This function normalizes those cases before parsing.
+
+    It deliberately raises a useful RuntimeError when the response cannot
+    be parsed instead of exposing a low-level JSONDecodeError such as:
+
+        Expecting value: line 1 column 1 (char 0)
+    """
+
+    if isinstance(response, dict):
+        return response
+
+    if response is None:
+        raise RuntimeError(
+            "Architecture validator returned an empty response."
+        )
+
+    if not isinstance(response, str):
+        raise RuntimeError(
+            "Architecture validator returned an unexpected response type: "
+            f"{type(response).__name__}"
+        )
+
+    content = response.strip()
+
+    if not content:
+        raise RuntimeError(
+            "Architecture validator returned an empty response."
+        )
+
+    # --------------------------------------------------------------
+    # Remove common Markdown JSON fences.
+    # --------------------------------------------------------------
+
+    if content.startswith("```"):
+        lines = content.splitlines()
+
+        if lines:
+            first_line = lines[0].strip().lower()
+
+            if first_line in {
+                "```",
+                "```json",
+                "```javascript",
+                "```js",
+            }:
+                lines = lines[1:]
+
+        if lines and lines[-1].strip() == "```":
+            lines = lines[:-1]
+
+        content = "\n".join(lines).strip()
+
+    # --------------------------------------------------------------
+    # First attempt: parse the complete response as JSON.
+    # --------------------------------------------------------------
+
+    try:
+        parsed = json.loads(content)
+
+        if not isinstance(parsed, dict):
+            raise RuntimeError(
+                "Architecture validator returned valid JSON, but the "
+                "top-level value is not a JSON object."
+            )
+
+        return parsed
+
+    except json.JSONDecodeError:
+        pass
+
+    # --------------------------------------------------------------
+    # Second attempt: locate the first JSON object.
+    #
+    # This handles responses such as:
+    #
+    # Here is the validation result:
+    # {"valid": true, ...}
+    #
+    # or:
+    #
+    # {"valid": true, ...}
+    # End of validation.
+    # --------------------------------------------------------------
+
+    first_object = content.find("{")
+
+    if first_object == -1:
+        preview = content[:500].replace("\n", "\\n")
+
+        raise RuntimeError(
+            "Architecture validator returned a response that does not "
+            "contain a JSON object. Response preview: "
+            f"{preview}"
+        )
+
+    decoder = json.JSONDecoder()
+
+    try:
+        parsed, _ = decoder.raw_decode(content[first_object:])
+
+    except json.JSONDecodeError as exc:
+        preview = content[:500].replace("\n", "\\n")
+
+        raise RuntimeError(
+            "Architecture validator returned malformed JSON. "
+            f"Parser error: {exc}. "
+            f"Response preview: {preview}"
+        ) from exc
+
+    if not isinstance(parsed, dict):
+        raise RuntimeError(
+            "Architecture validator returned valid JSON, but the "
+            "top-level value is not a JSON object."
+        )
+
+    return parsed
+
+
 def validate(
     document: str,
     project_context: dict | None = None,
@@ -455,7 +582,7 @@ PROJECT CONTEXT
         },
     )
 
-    report = json.loads(response)
+    report = _parse_json_response(response)
 
     defaults = {
         "valid": True,

@@ -20,8 +20,16 @@ class WorkflowStage:
 WORKFLOW = [
 
     WorkflowStage(
-        name="requirements",
+        name="discovery",
         depends_on=(),
+        gate_after=False,
+    ),
+
+    WorkflowStage(
+        name="requirements",
+        depends_on=(
+            "discovery",
+        ),
         gate_after=True,
     ),
 

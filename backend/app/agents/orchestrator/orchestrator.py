@@ -76,6 +76,7 @@ class Orchestrator:
         )
 
         state.status = WorkflowStatus.RUNNING
+        state.current_stage = None
 
         try:
 
@@ -99,6 +100,20 @@ class Orchestrator:
 
                 for batch in batches:
 
+                    # --------------------------------------------------
+                    # Track the stage currently being executed.
+                    #
+                    # For a parallel batch, expose the first stage as
+                    # the current stage while all stages in the batch
+                    # execute concurrently.
+                    # --------------------------------------------------
+
+                    state.current_stage = (
+                        batch[0]
+                        if batch
+                        else None
+                    )
+
                     results = await self._execute_batch(
                         batch=batch,
                         context=context,
@@ -117,7 +132,8 @@ class Orchestrator:
                             if stage.gate_after:
                                 raise GateFailedError(
                                     f"Stage failed: "
-                                    f"{result.stage}"
+                                    f"{result.stage}: "
+                                    f"{result.error}"
                                 )
 
                             spec = self.registry.get(
@@ -127,8 +143,13 @@ class Orchestrator:
                             if spec.required:
                                 raise GateFailedError(
                                     f"Required stage failed: "
-                                    f"{result.stage}"
+                                    f"{result.stage}: "
+                                    f"{result.error}"
                                 )
+
+                            # Optional failed stages are recorded
+                            # but are not considered completed.
+                            continue
 
                         if result.succeeded:
 
@@ -147,6 +168,13 @@ class Orchestrator:
                                 context,
                                 result,
                             )
+
+                    # --------------------------------------------------
+                    # If the batch completed successfully, clear the
+                    # current stage before moving to the next batch.
+                    # --------------------------------------------------
+
+                    state.current_stage = None
 
             state.current_stage = None
             state.status = WorkflowStatus.COMPLETED
@@ -181,7 +209,9 @@ class Orchestrator:
                         f"'{dependency}'."
                     )
 
+        # --------------------------------------------------
         # Simple cycle detection.
+        # --------------------------------------------------
 
         visiting: set[str] = set()
         visited: set[str] = set()
@@ -201,6 +231,7 @@ class Orchestrator:
             for dependency in WORKFLOW_BY_NAME[
                 name
             ].depends_on:
+
                 visit(dependency)
 
             visiting.remove(name)
@@ -254,32 +285,48 @@ class Orchestrator:
             stage = WORKFLOW_BY_NAME[name]
 
             if stage.parallel_group:
+
                 parallel_groups.setdefault(
                     stage.parallel_group,
                     [],
                 ).append(name)
 
             else:
+
                 sequential.append(name)
 
         batches: list[list[str]] = []
 
+        # --------------------------------------------------
+        # Sequential stages.
+        # --------------------------------------------------
+
         for name in sequential:
             batches.append([name])
+
+        # --------------------------------------------------
+        # Explicitly parallel-safe groups.
+        # --------------------------------------------------
 
         for group in parallel_groups.values():
 
             if len(group) == 1:
+
                 batches.append(group)
+
                 continue
 
             if all(
-                self.registry.get(name).parallel_safe
+                self.registry.get(
+                    name
+                ).parallel_safe
                 for name in group
             ):
+
                 batches.append(group)
 
             else:
+
                 for name in group:
                     batches.append([name])
 
@@ -323,12 +370,21 @@ class Orchestrator:
     ) -> AgentResult:
 
         if not self.registry.contains(stage):
+
             raise AgentNotRegisteredError(
                 f"No agent registered for stage "
                 f"'{stage}'."
             )
 
         started = time.perf_counter()
+
+        print()
+        print("=" * 80)
+        print(
+            f"ORCHESTRATOR: Starting stage "
+            f"'{stage}'"
+        )
+        print("=" * 80)
 
         try:
 
@@ -344,6 +400,18 @@ class Orchestrator:
 
             result.duration_ms = duration_ms
 
+            print()
+            print("=" * 80)
+            print(
+                f"ORCHESTRATOR: Stage "
+                f"'{stage}' completed successfully"
+            )
+            print(
+                f"ORCHESTRATOR: Duration: "
+                f"{duration_ms:.2f} ms"
+            )
+            print("=" * 80)
+
             return result
 
         except Exception as exc:
@@ -353,9 +421,39 @@ class Orchestrator:
                 - started
             ) * 1000
 
+            print()
+            print("=" * 80)
+            print(
+                f"ORCHESTRATOR: STAGE "
+                f"'{stage}' FAILED"
+            )
+            print(
+                f"Exception Type: "
+                f"{type(exc).__name__}"
+            )
+            print(
+                f"Exception: {exc}"
+            )
+            print(
+                f"Duration: "
+                f"{duration_ms:.2f} ms"
+            )
+            print()
+            print("TRACEBACK")
+            print("-" * 80)
+
+            import traceback
+
+            traceback.print_exc()
+
+            print("=" * 80)
+
             return AgentResult.failure(
                 stage=stage,
-                error=str(exc),
+                error=(
+                    f"{type(exc).__name__}: "
+                    f"{exc}"
+                ),
                 duration_ms=duration_ms,
             )
 

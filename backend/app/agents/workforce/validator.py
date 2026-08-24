@@ -51,6 +51,16 @@ OUTPUT FORMAT
     "recommendations": []
 }
 
+IMPORTANT OUTPUT RULES
+
+- "issues" MUST be an array of strings.
+- "warnings" MUST be an array of strings.
+- "missing_sections" MUST be an array of section-name strings.
+- "recommendations" MUST be an array of strings.
+- Do not return objects/dictionaries inside these arrays.
+- Do not return nested structures inside these arrays.
+- If there are no items, return [].
+
 WORKFORCE ROLE
 
 The Workforce stage converts the approved Blueprint into an
@@ -232,6 +242,83 @@ Return JSON only.
 """
 
 
+def _normalize_string_list(
+    value,
+    field_name: str,
+) -> list[str]:
+    """
+    Normalize validator output fields that are expected to
+    contain strings.
+
+    The LLM is instructed to return string arrays, but model
+    output must never be trusted blindly. This prevents
+    dictionaries/lists from leaking into downstream operations
+    such as dict.fromkeys().
+    """
+
+    if not isinstance(value, list):
+        return [
+            f"Validator returned an invalid {field_name} structure."
+        ]
+
+    normalized: list[str] = []
+
+    for item in value:
+        if isinstance(item, str):
+            text = item.strip()
+
+            if text:
+                normalized.append(text)
+
+        elif isinstance(item, dict):
+            # Preserve useful information without allowing the
+            # dictionary itself to become an unhashable value.
+            try:
+                normalized.append(
+                    json.dumps(
+                        item,
+                        ensure_ascii=False,
+                        sort_keys=True,
+                    )
+                )
+            except (TypeError, ValueError):
+                normalized.append(
+                    f"Validator returned a dictionary in {field_name}."
+                )
+
+        elif item is not None:
+            normalized.append(str(item))
+
+    return normalized
+
+
+def _deduplicate_strings(
+    values: list[str],
+) -> list[str]:
+    """
+    Deduplicate string values while preserving their original
+    order.
+    """
+
+    seen: set[str] = set()
+    result: list[str] = []
+
+    for value in values:
+        if not isinstance(value, str):
+            continue
+
+        normalized = value.strip()
+
+        if not normalized:
+            continue
+
+        if normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+
+    return result
+
+
 def validate(
     document: str,
     project_context: dict | None = None,
@@ -259,7 +346,7 @@ def validate(
                 "Generated workforce document must be non-empty."
             ],
             "warnings": [],
-            "missing_sections": list(
+            "missing_sections": sorted(
                 REQUIRED_SECTIONS
             ),
             "recommendations": [],
@@ -408,7 +495,19 @@ Do not invent issues.
 Do not redesign the system.
 
 Return the validation report.
+
+REMINDER:
+
+The following fields MUST contain only strings:
+
+"issues"
+"warnings"
+"missing_sections"
+"recommendations"
+
+Do not place dictionaries or nested objects inside those arrays.
 """
+
 
     gateway = LLMGateway()
 
@@ -437,67 +536,122 @@ Return the validation report.
         }
 
     if not isinstance(report, dict):
-        report = {}
+        report = {
+            "valid": False,
+            "confidence": 0,
+            "issues": [
+                "Workforce validator returned an invalid report structure."
+            ],
+            "warnings": [],
+            "missing_sections": [],
+            "recommendations": [],
+        }
 
-    report_issues = report.get(
+    # --------------------------------------------------
+    # Normalize LLM Output
+    # --------------------------------------------------
+    #
+    # Never trust the LLM to return exactly the structure
+    # requested by the system prompt.
+    #
+    # In particular, missing_sections previously contained
+    # dictionaries, which caused:
+    #
+    #     TypeError: unhashable type: 'dict'
+    #
+    # when dict.fromkeys() was called.
+    # --------------------------------------------------
+
+    report_issues = _normalize_string_list(
+        report.get(
+            "issues",
+            [],
+        ),
         "issues",
-        [],
     )
 
-    report_warnings = report.get(
+    report_warnings = _normalize_string_list(
+        report.get(
+            "warnings",
+            [],
+        ),
         "warnings",
-        [],
     )
 
-    report_missing_sections = report.get(
+    report_missing_sections = _normalize_string_list(
+        report.get(
+            "missing_sections",
+            [],
+        ),
         "missing_sections",
-        [],
     )
 
-    recommendations = report.get(
+    recommendations = _normalize_string_list(
+        report.get(
+            "recommendations",
+            [],
+        ),
         "recommendations",
-        [],
     )
 
-    if not isinstance(report_issues, list):
-        report_issues = [
-            "Validator returned an invalid issues structure."
-        ]
-
-    if not isinstance(report_warnings, list):
-        report_warnings = [
-            "Validator returned an invalid warnings structure."
-        ]
-
-    if not isinstance(report_missing_sections, list):
-        report_missing_sections = []
-
-    if not isinstance(recommendations, list):
-        recommendations = []
+    # --------------------------------------------------
+    # Merge Deterministic + LLM Validation
+    # --------------------------------------------------
 
     issues.extend(report_issues)
     warnings.extend(report_warnings)
 
-    combined_missing_sections = list(
-        dict.fromkeys(
-            missing_sections
-            + report_missing_sections
-        )
+    combined_missing_sections = _deduplicate_strings(
+        missing_sections
+        + report_missing_sections
     )
+
+    # --------------------------------------------------
+    # Final Validation State
+    # --------------------------------------------------
 
     valid = (
         len(issues) == 0
         and len(combined_missing_sections) == 0
     )
 
-    return {
-        "valid": valid,
-        "confidence": report.get(
-            "confidence",
+    # --------------------------------------------------
+    # Normalize Confidence
+    # --------------------------------------------------
+
+    confidence = report.get(
+        "confidence",
+        100,
+    )
+
+    try:
+        confidence = int(confidence)
+    except (TypeError, ValueError):
+        confidence = 0
+
+    confidence = max(
+        0,
+        min(
+            confidence,
             100,
         ),
-        "issues": issues,
-        "warnings": warnings,
+    )
+
+    # --------------------------------------------------
+    # Return Final Validation Report
+    # --------------------------------------------------
+
+    return {
+        "valid": valid,
+        "confidence": confidence,
+        "issues": _deduplicate_strings(
+            issues
+        ),
+        "warnings": _deduplicate_strings(
+            warnings
+        ),
         "missing_sections": combined_missing_sections,
-        "recommendations": recommendations,
+        "recommendations": _deduplicate_strings(
+            recommendations
+        ),
     }
